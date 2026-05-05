@@ -58,12 +58,9 @@ original_data/
 - `kxr_sq_bu00.txt`: A file containing the Kellgren-Lawrence (KL) grades and OARSI grades for each radiograph (e.g., kxr_sq_bu00.txt from the OAI dataset).
 
 3. Run `shape_patch_kl.py` to extract and preprocess information from the dataset.
-
-This script generates the following files:
-
-`id_shapeLR_V00.npz`: Contains patient IDs, landmark coordinates, KL grades, and OARSI grades.
-
-`./data/V00/V00_knee_patches_patient_grouped_16_100_all_feature.h5`
+- This script generates the following files:
+  - `id_shapeLR_V00.npz`: Contains patient IDs, landmark coordinates, KL grades, and OARSI grades.
+  - `./data/V00/V00_knee_patches_patient_grouped_16_100_all_feature.h5`
 The main dataset file containing the extracted and processed image patches, ready for model training.
 
 ## Training
