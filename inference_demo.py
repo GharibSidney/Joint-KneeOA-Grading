@@ -32,6 +32,7 @@ from myutils import (
     process_xray,
     create_redsalpha,
 )
+from constant import PATH_DEMO_DATASET
 
 class Config:
     def __init__(self, config_dict):
@@ -325,7 +326,7 @@ def main(config):
 
         visualize_attention_on_img(
             save_path=config.CHECKPOINT_DIR,
-            file_path=rf"./original_data/V00/Bilateral_PA_Fixed_Flexion_Knee/{patient_ids[index_all]}.dcm",
+            file_path=rf"{PATH_DEMO_DATASET}{patient_ids[index_all]}.dcm",
             patient_id=patient_ids[index_all],
             index_all=index_all,
             shapes_L_2d=shapes_L_2d,
@@ -351,7 +352,7 @@ def main(config):
             patch_from_point_func=patchFromPoint,
             shapes_L_2d=shapes_L_2d,
             shapes_R_2d=shapes_R_2d,
-            file_path_template=f"./original_data/V00/Bilateral_PA_Fixed_Flexion_Knee/{patient_ids[index_all]}.dcm",
+            file_path_template=f"{PATH_DEMO_DATASET}{patient_ids[index_all]}.dcm",
             patch_point_indices=PATCH_POINT_INDICES,
             cmap_obj=reds_alpha,
         )
