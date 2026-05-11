@@ -8,7 +8,7 @@ import cv2
 import pydicom
 import math
 import h5py
-
+from constants import PATH_DATASET
 
 # --- Configuration ---
 # Set visit identifier (change this to V00, V01, V03, V05, etc.)
@@ -18,7 +18,7 @@ VISIT = "V00"
 BASE_DIR = "original_data"
 
 # Input paths
-IMAGE_DIR = f"{BASE_DIR}/{VISIT}/Bilateral_PA_Fixed_Flexion_Knee"  # Directory containing OAI DICOM 
+IMAGE_DIR = PATH_DATASET #f"{BASE_DIR}/{VISIT}/Bilateral_PA_Fixed_Flexion_Knee"  # Directory containing OAI DICOM 
 PTS_DIR = f"{BASE_DIR}/{VISIT}/Points_px"  # Directory containing .pts landmark files from BoneFinder
 TXT_FILE_PATH = f"{BASE_DIR}/{VISIT}/kxr_sq_bu{VISIT[1:]}.txt"  # Path to the master TXT file
 SHAPELR_NPZ = f"{BASE_DIR}/{VISIT}/id_shapes_LR_{VISIT}.npz"  # Optional: Pre-saved shapes file
