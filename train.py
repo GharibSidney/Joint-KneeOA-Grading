@@ -299,14 +299,51 @@ def main(config):
     print(f"Total valid samples: {len(groups)}")
 
     # Train/val/test split
-    train_val, test, train_val_grades, _ = train_test_split(
-        np.array(groups), np.array(grades), test_size=0.2, stratify=grades, random_state=config.SEED
+    # train_val, test, train_val_grades, _ = train_test_split(
+    #     np.array(groups), np.array(grades), test_size=0.2, stratify=grades, random_state=config.SEED
+    # )
+    # train, val, _, _ = train_test_split(
+    #     train_val, train_val_grades, test_size=0.25, stratify=train_val_grades, random_state=config.SEED
+    # )
+
+    # train_pids, val_pids, test_pids = train.tolist(), val.tolist(), test.tolist()
+    # Extract unique patient IDs (strip _L / _R suffix)
+    patient_ids = np.array(list({g.rsplit('_', 1)[0] for g in groups}))
+
+    # Build a per-patient grade (take the max or first grade found for that patient)
+    patient_grade_map = {}
+    for g, grade in zip(groups, grades):
+        pid = g.rsplit('_', 1)[0]
+        if pid not in patient_grade_map:
+            patient_grade_map[pid] = grade
+
+    patient_grades = np.array([patient_grade_map[pid] for pid in patient_ids])
+
+    # Split on patient IDs
+    train_val_pids, test_pids, _, _ = train_test_split(
+        patient_ids, patient_grades,
+        test_size=0.2, stratify=patient_grades, random_state=config.SEED
     )
-    train, val, _, _ = train_test_split(
-        train_val, train_val_grades, test_size=0.25, stratify=train_val_grades, random_state=config.SEED
+    
+    train_pids, val_pids, _, _ = train_test_split(
+        train_val_pids,
+        np.array([patient_grade_map[pid] for pid in train_val_pids]),
+        test_size=0.25, stratify=[patient_grade_map[pid] for pid in train_val_pids],
+        random_state=config.SEED
     )
 
-    train_pids, val_pids, test_pids = train.tolist(), val.tolist(), test.tolist()
+    # Map back to individual knee images
+    train_pids_set = set(train_pids)
+    val_pids_set   = set(val_pids)
+    test_pids_set  = set(test_pids)
+
+    train = [g for g in groups if g.rsplit('_', 1)[0] in train_pids_set]
+    val   = [g for g in groups if g.rsplit('_', 1)[0] in val_pids_set]
+    test  = [g for g in groups if g.rsplit('_', 1)[0] in test_pids_set]
+
+    with open("splits.json", "w") as f:
+        json.dump({"train": train, "val": val, "test": test}, f)
+
     if "9491446_R" in test_pids:  # remove bad image
         test_pids.remove("9491446_R")
 
