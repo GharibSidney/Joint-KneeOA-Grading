@@ -337,12 +337,12 @@ def main(config):
     val_pids_set   = set(val_pids)
     test_pids_set  = set(test_pids)
 
-    train = [g for g in groups if g.rsplit('_', 1)[0] in train_pids_set]
-    val   = [g for g in groups if g.rsplit('_', 1)[0] in val_pids_set]
-    test  = [g for g in groups if g.rsplit('_', 1)[0] in test_pids_set]
+    train_pids = [g for g in groups if g.rsplit('_', 1)[0] in train_pids_set]
+    val_pids   = [g for g in groups if g.rsplit('_', 1)[0] in val_pids_set]
+    test_pids  = [g for g in groups if g.rsplit('_', 1)[0] in test_pids_set]
 
-    with open("splits.json", "w") as f:
-        json.dump({"train": train, "val": val, "test": test}, f)
+    # with open("splits.json", "w") as f:
+    #     json.dump({"train": train, "val": val, "test": test}, f)
 
     if "9491446_R" in test_pids:  # remove bad image
         test_pids.remove("9491446_R")
@@ -353,7 +353,7 @@ def main(config):
     if os.path.exists(config.MEAN_STD_FILE_PATH):
         mean, std = np.load(config.MEAN_STD_FILE_PATH)
     else:
-        mean, std = calculate_mean_std(config.H5_FILE, train, config.MEAN_STD_FILE_PATH, config.DEFAULT_MAX_PIXEL_VALUE)
+        mean, std = calculate_mean_std(config.H5_FILE, train_pids, config.MEAN_STD_FILE_PATH, config.DEFAULT_MAX_PIXEL_VALUE)
     print(f"Mean: {mean}, Std: {std}")
 
     train_transform, val_transform = create_transforms(mean, std)

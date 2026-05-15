@@ -645,7 +645,7 @@ class CompleteMILModel(nn.Module):
         else:
             final_batch_att_scores = torch.empty(0, device=next(self.parameters()).device)
         final_aggregated_features = torch.cat(aggregated_features_all, dim=0) # (batch_size, embedding_dim)
-        patch_embeddings_stacked_all = torch.stack(patch_embeddings_stacked_all, dim=0) # (batch_size, N_i, embedding_dim)
+        #patch_embeddings_stacked_all = torch.stack(patch_embeddings_stacked_all, dim=0) # (batch_size, N_i, embedding_dim)
 
         return final_batch_logits, final_batch_att_scores, patch_embeddings_stacked_all, final_aggregated_features 
 
