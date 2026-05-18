@@ -341,8 +341,8 @@ def main(config):
     val_pids   = [g for g in groups if g.rsplit('_', 1)[0] in val_pids_set]
     test_pids  = [g for g in groups if g.rsplit('_', 1)[0] in test_pids_set]
 
-    # with open("splits.json", "w") as f:
-    #     json.dump({"train": train, "val": val, "test": test}, f)
+    with open("splits.json", "w") as f:
+        json.dump({"train": train_pids, "val": val_pids, "test": test_pids}, f)
 
     if "9491446_R" in test_pids:  # remove bad image
         test_pids.remove("9491446_R")

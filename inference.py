@@ -33,6 +33,7 @@ from myutils import (
     create_redsalpha,
 )
 from sklearn.utils import resample
+from constants import PATH_DATASET
 
 class Config:
     def __init__(self, config_dict):
@@ -501,7 +502,7 @@ def main(config):
 
         visualize_attention_on_img(
             save_path=config.CHECKPOINT_DIR,
-            file_path=rf"./original_data/V00/Bilateral_PA_Fixed_Flexion_Knee/{patient_ids[index_all]}.dcm",
+            file_path=rf"{PATH_DATASET}/{patient_ids[index_all]}.dcm",
             patient_id=patient_ids[index_all],
             index_all=index_all,
             shapes_L_2d=shapes_L_2d,

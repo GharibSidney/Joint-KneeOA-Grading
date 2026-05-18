@@ -12,7 +12,7 @@ DATA_HALF = False
 
 # Dataset / Checkpoints
 DEFAULT_H5_FILE = "./original_data/V00/V00_knee_patches_patient_grouped_16_100_all_feature.h5"
-
+PRETRAINED_MODEL_PATH = "original_data/V00/Good_model_checkpoints_20260518_113417_epoch200_MIL_LCE_M0_C0_Fo_lr1e-04_b16"
 # Training hyperparameters
 KL_NUM_CLASSES = 5
 OARSI_TASKS = {
@@ -216,7 +216,8 @@ def build_config():
         "PRE_CHECKPOINT_DIR": args.pre_ckpt,
         "CHECKPOINT_DIR": checkpoint_dir,
         "MEAN_STD_FILE_PATH": os.path.join(checkpoint_dir, "mean_std_train_patches.npy"),
-        # "PRETRAINED_MODEL_PATH": DEFAULT_PRETRAINED_MODEL,
+        "PRETRAINED_MODEL_PATH": PRETRAINED_MODEL_PATH,
+        "MEAN_STD_FILE_PATH_Optional": os.path.join(PRETRAINED_MODEL_PATH, "mean_std_train_patches.npy"),
 
         # hyperparameters
         "FEATURE_EXTRACTOR_OUT_DIM": FEATURE_EXTRACTOR_OUT_DIM,
