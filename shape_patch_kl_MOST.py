@@ -10,8 +10,8 @@ import h5py
 # Configuration
 # ─────────────────────────────────────────────
 
-BASE_PTS_DIR   = "/data/net/datasets/MOST/preprocess_Points_Knee_Radiographs"
-BASE_IMG_DIR   = "/data/net/datasets/MOST/preprocess_Knee_Radiographs"
+# BASE_PTS_DIR   = "/data/net/datasets/MOST/preprocess_Points_Knee_Radiographs"
+# BASE_IMG_DIR   = "/data/net/datasets/MOST/preprocess_Knee_Radiographs"
 
 VISIT_FOLDERS = sorted([d for d in os.listdir(BASE_PTS_DIR)
     if os.path.isdir(os.path.join(BASE_PTS_DIR, d))
@@ -25,7 +25,7 @@ VISIT_LABEL    = "M00"          # short label used in output filenames
 # Leave as None to collect patches without labels (kl_grade stored as -999).
 LABEL_FILE     = "/data/net/datasets/MOST/MOST_KL_labels.csv"            # e.g. "/data/.../most_labels.csv"
 
-IMG_SIZE        = 100           # used for patch-size scaling (match OAI convention)
+IMG_SIZE        = 100           # used for patch-size scaling (match OAI convention) 
 CROP_PATCH_SIZE = 16
 TARGET_PATCH_SIZE = (CROP_PATCH_SIZE, CROP_PATCH_SIZE)
 PATCH_AREA_PX   = IMG_SIZE * IMG_SIZE

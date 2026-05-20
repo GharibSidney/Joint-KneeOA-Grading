@@ -18,7 +18,7 @@ VISIT = "V00"
 BASE_DIR = "original_data"
 
 # Input paths
-IMAGE_DIR = PATH_DATASET #f"{BASE_DIR}/{VISIT}/Bilateral_PA_Fixed_Flexion_Knee"  # Directory containing OAI DICOM 
+IMAGE_DIR = f"{BASE_DIR}/{VISIT}/Bilateral_PA_Fixed_Flexion_Knee"  # Directory containing OAI DICOM  #PATH_DATASET
 PTS_DIR = f"{BASE_DIR}/{VISIT}/Points_px"  # Directory containing .pts landmark files from BoneFinder
 TXT_FILE_PATH = f"{BASE_DIR}/{VISIT}/kxr_sq_bu{VISIT[1:]}.txt"  # Path to the master TXT file
 SHAPELR_NPZ = f"{BASE_DIR}/{VISIT}/id_shapes_LR_{VISIT}.npz"  # Optional: Pre-saved shapes file
@@ -643,10 +643,10 @@ if __name__ == "__main__":
         patches_right.append(resized_patch)
     
     # Plot left patches
-    # plot_patches_grid(patches_left, title='Left Knee Patches', start_index=interval[0])
+    plot_patches_grid(patches_left, title='Left Knee Patches', start_index=interval[0])
 
     # # Plot right patches
-    # plot_patches_grid(patches_right, title='Right Knee Patches', start_index=interval[0] + 74)
+    plot_patches_grid(patches_right, title='Right Knee Patches', start_index=interval[0] + 74)
 
     # # Plot flipped vs right patches
     # plot_flipped_vs_right(patches_left, patches_right, interval, n_cols=8)
