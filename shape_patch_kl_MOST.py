@@ -12,7 +12,8 @@ import h5py
 
 # BASE_PTS_DIR   = "/data/net/datasets/MOST/preprocess_Points_Knee_Radiographs"
 # BASE_IMG_DIR   = "/data/net/datasets/MOST/preprocess_Knee_Radiographs"
-
+BASE_IMG_DIR = "/data/net/datasets/MOST/image_temp"
+BASE_PTS_DIR = "/data/net/datasets/MOST/pts_pixel_temp"
 VISIT_FOLDERS = sorted([d for d in os.listdir(BASE_PTS_DIR)
     if os.path.isdir(os.path.join(BASE_PTS_DIR, d))
 ])  # change per visit, e.g. M0001_PHPP, M0003_PHPP …
@@ -147,7 +148,7 @@ def discover_subjects(base_pts_dir, visit_folders):
     return records
 
 def image_path_for(base_img_dir,  visit_folder, subject_id, view_subdir, image_id):
-    return os.path.join(base_img_dir, visit_folder, subject_id, view_subdir, image_id)
+    return os.path.join(base_img_dir, visit_folder, subject_id, view_subdir, image_id+ ".dcm")
 
 
 # ─────────────────────────────────────────────
