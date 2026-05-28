@@ -152,6 +152,11 @@ def main(config):
         num_workers=config.NUM_WORKERS,
         pin_memory=config.PIN_MEMORY
     )
+    # After test_loader is created, before run_epoch
+    for _, labels_batch, _, _ in test_loader:
+        print(f"Unique labels : {labels_batch.unique().tolist()}")
+        print(f"Min / Max     : {labels_batch.min().item()} / {labels_batch.max().item()}")
+        break  # just check the first batch
 
     # --------------------------------------------------
     # Model

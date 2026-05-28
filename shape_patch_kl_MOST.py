@@ -6,25 +6,24 @@ import cv2
 import pydicom
 import h5py
 
-# ─────────────────────────────────────────────
+# 
 # Configuration
-# ─────────────────────────────────────────────
+# 
 
 # BASE_PTS_DIR   = "/data/net/datasets/MOST/preprocess_Points_Knee_Radiographs"
 # BASE_IMG_DIR   = "/data/net/datasets/MOST/preprocess_Knee_Radiographs"
-BASE_IMG_DIR = "/data/net/datasets/MOST/image_temp"
-BASE_PTS_DIR = "/data/net/datasets/MOST/pts_pixel_temp"
+BASE_IMG_DIR = "/data/net/datasets/MOST/preprocess_Knee_Radiographs"
+BASE_PTS_DIR = "/data/net/datasets/MOST/preprocess_Points_Knee_Radiographs"
 VISIT_FOLDERS = sorted([d for d in os.listdir(BASE_PTS_DIR)
     if os.path.isdir(os.path.join(BASE_PTS_DIR, d))
 ])  # change per visit, e.g. M0001_PHPP, M0003_PHPP …
 VISIT_LABEL    = "M00"          # short label used in output filenames
 
-
 # Labels – set to None if not yet available; those patients will be skipped
 # when kl_grade == -999 inside save_knee_to_hdf5.
 # Expected format: CSV / TXT with columns: subject_id, image_id, KL_L, KL_R, …
 # Leave as None to collect patches without labels (kl_grade stored as -999).
-LABEL_FILE     = "/data/net/datasets/MOST/MOST_KL_labels.csv"            # e.g. "/data/.../most_labels.csv"
+LABEL_FILE     = "/data/net/datasets/MOST/MOST_labels.csv"            # e.g. "/data/.../most_labels.csv"
 
 IMG_SIZE        = 100           # used for patch-size scaling (match OAI convention) 
 CROP_PATCH_SIZE = 16
@@ -42,9 +41,9 @@ RANGE2 = np.arange(44, 67)
 PATCH_POINT_INDICES = np.concatenate([RANGE1, RANGE2])
 
 
-# ─────────────────────────────────────────────
+# 
 # Landmark / image discovery helpers
-# ─────────────────────────────────────────────
+# 
 
 def discover_subjects(base_pts_dir, visit_folders):
     """
@@ -65,11 +64,11 @@ def discover_subjects(base_pts_dir, visit_folders):
     """
 
     records = []
-    i = 0
+    # i = 0
     for visit_folder in visit_folders:
-        i+=1
-        if i >800:
-            break
+        # i+=1
+        # if i >800:
+        #     break
         visit_root = os.path.join(base_pts_dir, visit_folder)
 
         if not os.path.isdir(visit_root):
@@ -151,9 +150,9 @@ def image_path_for(base_img_dir,  visit_folder, subject_id, view_subdir, image_i
     return os.path.join(base_img_dir, visit_folder, subject_id, view_subdir, image_id+ ".dcm")
 
 
-# ─────────────────────────────────────────────
+# 
 # .pts reading  (identical logic to OAI version)
-# ─────────────────────────────────────────────
+# 
 
 def read_pts_file(filepath, expected_points):
     points = []
@@ -199,9 +198,9 @@ def read_pts_file(filepath, expected_points):
         return None
 
 
-# ─────────────────────────────────────────────
+# 
 # Label loading  (stub – extend for real labels)
-# ─────────────────────────────────────────────
+# 
 def process_kl(value):
     if value is None or value == "":
         return -999
@@ -231,15 +230,15 @@ def load_labels(label_file):
         key = str(row["MOSTID"])
 
         labels[key] = {
-            "kl_L": process_kl(row.get("V7XLKL")),
-            "kl_R": process_kl(row.get("V7XRKL")),
+            "kl_L": process_kl(row.get("V0XLKL")),
+            "kl_R": process_kl(row.get("V0XRKL")),
         }
     return labels
 
 
-# ─────────────────────────────────────────────
+# 
 # Image processing  (identical to OAI)
-# ─────────────────────────────────────────────
+# 
 
 def process_xray(img, cut_min=5, cut_max=99, multiplier=255):
     img = img.copy().astype(np.float64)
@@ -251,9 +250,9 @@ def process_xray(img, cut_min=5, cut_max=99, multiplier=255):
     return img
 
 
-# ─────────────────────────────────────────────
+# 
 # Patch helpers  (identical to OAI)
-# ─────────────────────────────────────────────
+# 
 
 def patch_from_point(point, size):
     topLeft  = (int(point[0] - size), int(point[1] - size))
@@ -285,9 +284,9 @@ def create_patches_for_knee(processed_image, shapes, point_indices,
     return patches, successful_indices
 
 
-# ─────────────────────────────────────────────
+# 
 # HDF5 saving  (identical to OAI)
-# ─────────────────────────────────────────────
+# 
 
 def save_knee_to_hdf5(hf, group_key, knee_side, processed_image, shapes,
                       kl_grade, aux_features, patch_half_width,
@@ -324,9 +323,9 @@ def save_knee_to_hdf5(hf, group_key, knee_side, processed_image, shapes,
     print(f"    Saved {patches_np.shape[0]} patches → '{group_key}' (KL {kl_grade})")
 
 
-# ─────────────────────────────────────────────
+# 
 # Main
-# ─────────────────────────────────────────────
+# 
 
 def main():
     # 1. Discover all subject records
