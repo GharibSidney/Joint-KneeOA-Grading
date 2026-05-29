@@ -31,7 +31,8 @@ TARGET_PATCH_SIZE = (CROP_PATCH_SIZE, CROP_PATCH_SIZE)
 PATCH_AREA_PX   = IMG_SIZE * IMG_SIZE
 
 EXPECTED_LANDMARKS_PER_KNEE = 74   # each _L.pts / _R.pts has this many points
-
+INVALID_KL_GRADES = {8, 9}   # skip implausible / erroneous KL grades
+PA_PRIORITY = ["PA10", "PA05", "PA15"]   # preferred view, in order
 OUTPUT_NPZ  = f"MOST_{VISIT_LABEL}_shapes_LR.npz"
 OUTPUT_HDF5 = f"MOST_{VISIT_LABEL}_knee_patches_{CROP_PATCH_SIZE}_{IMG_SIZE}.h5"
 
@@ -91,8 +92,13 @@ def discover_subjects(base_pts_dir, visit_folders):
                 and os.path.isdir(os.path.join(subject_dir, d))
             ]
 
-            for view_subdir in pa_dirs:
+            # Pick the highest-priority PA folder available for this subject
+            preferred = next((p for p in PA_PRIORITY if p in pa_dirs), pa_dirs[0] if pa_dirs else None)
+            if preferred is None:
+                continue
+            pa_dirs = [preferred]   # only process the one chosen folder
 
+            for view_subdir in pa_dirs:
                 view_dir = os.path.join(
                     subject_dir,
                     view_subdir
@@ -364,9 +370,14 @@ def main():
         label_entry = labels.get(most_id, {})
         kl_L  = label_entry.get("kl_L",  -999)
         kl_R  = label_entry.get("kl_R",  -999)
+
         if kl_L == -999 or kl_R == -999:
             print(f"  Skipping {sid} due no labels.")
             continue 
+
+        if kl_L in INVALID_KL_GRADES or kl_R in INVALID_KL_GRADES:
+            print(f"  Skipping {sid}: KL grade out of range (L={kl_L}, R={kl_R}).")
+            continue
 
         aux_L = label_entry.get("aux_L", [])
         aux_R = label_entry.get("aux_R", [])
@@ -440,7 +451,7 @@ def main():
                 aux_R    = list(aux_R_list[idx])
 
                 # Group key: "<subject_id>_<image_id>_L" / "_R"
-                key_base = f"{sid}_{iid}"
+                key_base = f"{most_id[0:5]}"
 
                 save_knee_to_hdf5(
                     hf, f"{key_base}_L", "L",
