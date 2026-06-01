@@ -4,7 +4,7 @@ import numpy as np
 import h5py
 import json
 from tqdm.auto import tqdm
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, StratifiedGroupKFold
 import pprint
 import torch
 import torch.optim as optim
@@ -102,23 +102,39 @@ def main(config):
     # apply mask
     groups = groups[mask]
     grades = grades[mask]
+    patient_ids = np.array([g.rsplit('_', 1)[0] for g in groups])
 
-    # Train/val/test split (K fold: test is fixed.)
-    train_val, test, train_val_grades, _ = train_test_split(
-        groups, grades, test_size=0.2, stratify=grades, random_state=split_seed
+    patient_grade_map = {}
+    for pid, grade in zip(patient_ids, grades):
+        patient_grade_map[pid] = max(patient_grade_map.get(pid, -1), int(grade))
+
+    unique_patients = np.array(sorted(patient_grade_map.keys()))
+    unique_patient_grades = np.array([patient_grade_map[pid] for pid in unique_patients])
+
+    train_val_patients, test_patients, _, _ = train_test_split(
+        unique_patients, unique_patient_grades,
+        test_size=0.2, stratify=unique_patient_grades, random_state=split_seed
     )
-    test_pids = test.tolist()
+
+    test_pids = groups[np.isin(patient_ids, test_patients)].tolist()
+
+    train_val_mask       = np.isin(patient_ids, train_val_patients)
+    train_val_groups     = groups[train_val_mask]
+    train_val_grades_arr = grades[train_val_mask]
+    train_val_pids_arr   = patient_ids[train_val_mask]
 
     config.K_FOLDS = 5
-    kf = StratifiedKFold(
+    kf = StratifiedGroupKFold(
         n_splits=config.K_FOLDS,
         shuffle=True,
-        random_state=split_seed
+        random_state=split_seed,
     )
+
     fold_results = []
 
-    
-    for fold, (train_idx, val_idx) in enumerate(kf.split(train_val, train_val_grades)):
+    for fold, (train_idx, val_idx) in enumerate(
+        kf.split(train_val_groups, train_val_grades_arr, groups=train_val_pids_arr)
+    ):
         if config.WANDB:
             wandb.init(
                 project="Knee_OA_MIL",
@@ -132,8 +148,13 @@ def main(config):
                 ],
             )
         print(f"\n======= Fold {fold+1}/{config.K_FOLDS} =======")
-        train_pids = groups[train_idx].tolist()
-        val_pids   = groups[val_idx].tolist()
+        train_pids = train_val_groups[train_idx].tolist()
+        val_pids   = train_val_groups[val_idx].tolist()
+
+        train_patients_in_fold = {g.rsplit('_', 1)[0] for g in train_pids}
+        val_patients_in_fold   = {g.rsplit('_', 1)[0] for g in val_pids}
+        assert train_patients_in_fold.isdisjoint(val_patients_in_fold), \
+            "Patient leakage detected between train and val!"
 
         # Compute or load mean/std: normalizing input data before feeding it into the model.
         mean, std = calculate_mean_std(config.H5_FILE, train_pids, config.MEAN_STD_FILE_PATH, config.DEFAULT_MAX_PIXEL_VALUE)
