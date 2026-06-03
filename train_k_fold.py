@@ -4,7 +4,7 @@ import numpy as np
 import h5py
 import json
 from tqdm.auto import tqdm
-from sklearn.model_selection import train_test_split, StratifiedGroupKFold
+from sklearn.model_selection import train_test_split, StratifiedGroupKFold, GroupKFold
 import pprint
 import torch
 import torch.optim as optim
@@ -80,7 +80,6 @@ def main(config):
     torch.manual_seed(config.SEED)
     torch.cuda.manual_seed(config.SEED)
     # ----------------- Setup ----------------- #
-    # Copy source files for reproducibility
     files_to_copy = ["train_k_fold.py", "model.py", "dataset.py", "data_augmentation.py", "losses.py", "utils.py", "config.py"]
     if not config.DEBUG_MODE:
         for file in files_to_copy:
@@ -96,10 +95,9 @@ def main(config):
 
     groups = np.array(groups)
     grades = np.array(grades)
-    bad_cases = {"9491446_R"} # only have 33 patches instead of 41
+    bad_cases = {"9491446_R"}
     mask = ~np.isin(groups, list(bad_cases))
 
-    # apply mask
     groups = groups[mask]
     grades = grades[mask]
     patient_ids = np.array([g.rsplit('_', 1)[0] for g in groups])
@@ -111,30 +109,46 @@ def main(config):
     unique_patients = np.array(sorted(patient_grade_map.keys()))
     unique_patient_grades = np.array([patient_grade_map[pid] for pid in unique_patients])
 
-    train_val_patients, test_patients, _, _ = train_test_split(
-        unique_patients, unique_patient_grades,
-        test_size=0.2, stratify=unique_patient_grades, random_state=split_seed
-    )
+    if config.HAS_TEST_SET:
+        train_val_patients, test_patients, _, _ = train_test_split(
+            unique_patients, unique_patient_grades,
+            test_size=0.2, stratify=unique_patient_grades, random_state=split_seed)
 
-    test_pids = groups[np.isin(patient_ids, test_patients)].tolist()
-
-    train_val_mask       = np.isin(patient_ids, train_val_patients)
-    train_val_groups     = groups[train_val_mask]
-    train_val_grades_arr = grades[train_val_mask]
-    train_val_pids_arr   = patient_ids[train_val_mask]
+        test_pids        = groups[np.isin(patient_ids, test_patients)].tolist()
+        train_val_mask   = np.isin(patient_ids, train_val_patients)
+        train_val_groups     = groups[train_val_mask]
+        train_val_grades_arr = grades[train_val_mask]
+        train_val_pids_arr   = patient_ids[train_val_mask]
+    else:
+        test_pids            = []
+        train_val_groups     = groups
+        train_val_grades_arr = grades
+        train_val_pids_arr   = patient_ids
 
     config.K_FOLDS = 5
-    kf = StratifiedGroupKFold(
-        n_splits=config.K_FOLDS,
-        shuffle=True,
-        random_state=split_seed,
-    )
+
+    unique_classes, class_counts = np.unique(train_val_grades_arr, return_counts=True)
+    min_class_count = int(class_counts.min())
+
+    if min_class_count >= config.K_FOLDS:
+        kf = StratifiedGroupKFold(
+            n_splits=config.K_FOLDS,
+            shuffle=True,
+            random_state=split_seed,
+        )
+        kf_split = kf.split(train_val_groups, train_val_grades_arr, groups=train_val_pids_arr)
+        print("Using StratifiedGroupKFold")
+    else:
+        print(
+            f"WARNING: min class count ({min_class_count}) < K_FOLDS ({config.K_FOLDS}). "
+            f"Falling back to GroupKFold (no stratification)."
+        )
+        kf = GroupKFold(n_splits=config.K_FOLDS)
+        kf_split = kf.split(train_val_groups, train_val_grades_arr, groups=train_val_pids_arr)
 
     fold_results = []
 
-    for fold, (train_idx, val_idx) in enumerate(
-        kf.split(train_val_groups, train_val_grades_arr, groups=train_val_pids_arr)
-    ):
+    for fold, (train_idx, val_idx) in enumerate(kf.split(train_val_groups, train_val_grades_arr, groups=train_val_pids_arr)):
         if config.WANDB:
             wandb.init(
                 project="Knee_OA_MIL",
@@ -155,25 +169,36 @@ def main(config):
         val_patients_in_fold   = {g.rsplit('_', 1)[0] for g in val_pids}
         assert train_patients_in_fold.isdisjoint(val_patients_in_fold), \
             "Patient leakage detected between train and val!"
-
+        
+        print(f"Fold {fold+1} — train: {len(train_idx)}, val: {len(val_idx)}")
+        
         # Compute or load mean/std: normalizing input data before feeding it into the model.
         mean, std = calculate_mean_std(config.H5_FILE, train_pids, config.MEAN_STD_FILE_PATH, config.DEFAULT_MAX_PIXEL_VALUE)
         print(f"Mean: {mean}, Std: {std}")
-        print(f"Training samples: {len(train_pids)}, Validation: {len(val_pids)}, Testing: {len(test_pids)}")
+        if config.HAS_TEST_SET:
+            print(f"Training samples: {len(train_pids)}, Validation: {len(val_pids)}, Testing: {len(test_pids)}")
+        else:
+            print(f"Training samples: {len(train_pids)}, Validation: {len(val_pids)}")
 
         train_transform, val_transform = create_transforms(mean, std)
 
         # Handle DATA_HALF option
         if config.DATA_HALF:
-            train_pids, val_pids, test_pids = train_pids[:len(train_pids)//2], val_pids[:len(val_pids)//2], test_pids[:len(test_pids)//2]
-            print(f"Using half dataset: train {len(train_pids)}, val {len(val_pids)}, test {len(test_pids)}")
+            train_pids = train_pids[:len(train_pids)//2]
+            val_pids   = val_pids[:len(val_pids)//2]
+            if config.HAS_TEST_SET:
+                test_pids = test_pids[:len(test_pids)//2]
+                print(f"Using half dataset: train {len(train_pids)}, val {len(val_pids)}, test {len(test_pids)}")
+            else:
+                print(f"Using half dataset: train {len(train_pids)}, val {len(val_pids)}")
 
         # ----------------- Class Weight ----------------- #
         # Datasets and loaders
         train_ds = KneeMILDataset(config.H5_FILE, train_pids, transform=train_transform)
-        val_ds = KneeMILDataset(config.H5_FILE, val_pids, transform=val_transform)
-        test_ds = KneeMILDataset(config.H5_FILE, test_pids, transform=val_transform)
-        
+        val_ds   = KneeMILDataset(config.H5_FILE, val_pids,   transform=val_transform)
+        if config.HAS_TEST_SET:
+            test_ds = KneeMILDataset(config.H5_FILE, test_pids, transform=val_transform)
+
         if config.classweight_type == "all_metrics_inv":
             class_weights_tensor_dict = {}
             with h5py.File(config.H5_FILE, 'r') as hf:
@@ -220,7 +245,7 @@ def main(config):
                     class_weights_tensor_dict["osfl"] = compute_class_weights("inv", class_counts_osfl, device=config.DEVICE)
                     for k, v in class_weights_tensor_dict.items():
                         print(f"Class weights for {k}: {v}")
-                
+
             class_weights_tensor = class_weights_tensor_dict
         else:
             train_kl_grades = []
@@ -233,15 +258,15 @@ def main(config):
             class_weights_tensor = compute_class_weights(config.classweight_type, class_counts, device=config.DEVICE)
             print(f"Using class weights: {class_weights_tensor}")
 
-
         sampler = None
 
         train_loader = DataLoader(train_ds, config.BATCH_SIZE, shuffle=False if sampler else True, collate_fn=mil_collate_fn, sampler=sampler,
-                                num_workers=config.NUM_WORKERS, pin_memory=config.PIN_MEMORY)
-        val_loader = DataLoader(val_ds, config.BATCH_SIZE, shuffle=False, collate_fn=mil_collate_fn,
-                                num_workers=config.NUM_WORKERS, pin_memory=config.PIN_MEMORY)
-        test_loader = DataLoader(test_ds, config.BATCH_SIZE, shuffle=False, collate_fn=mil_collate_fn,
-                                num_workers=config.NUM_WORKERS, pin_memory=config.PIN_MEMORY)
+                                  num_workers=config.NUM_WORKERS, pin_memory=config.PIN_MEMORY)
+        val_loader   = DataLoader(val_ds, config.BATCH_SIZE, shuffle=False, collate_fn=mil_collate_fn,
+                                  num_workers=config.NUM_WORKERS, pin_memory=config.PIN_MEMORY)
+        if config.HAS_TEST_SET:
+            test_loader = DataLoader(test_ds, config.BATCH_SIZE, shuffle=False, collate_fn=mil_collate_fn,
+                                     num_workers=config.NUM_WORKERS, pin_memory=config.PIN_MEMORY)
 
         # ----------------- Model ----------------- #
         model = get_model(config)

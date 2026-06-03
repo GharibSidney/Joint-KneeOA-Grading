@@ -18,8 +18,8 @@ VISIT = "V00"
 BASE_DIR = "original_data"
 
 # Input paths
-IMAGE_DIR = f"{BASE_DIR}/{VISIT}/Bilateral_PA_Fixed_Flexion_Knee"  # Directory containing OAI DICOM  #PATH_DATASET
-PTS_DIR = f"{BASE_DIR}/{VISIT}/Points_px"  # Directory containing .pts landmark files from BoneFinder
+IMAGE_DIR = "/data/net/datasets/OAI_Extracted/images/xray/V00"  # Directory containing OAI DICOM  #PATH_DATASET
+PTS_DIR = "/data/net/datasets/OAI_Extracted/images/xray/V00/bonefinder_pts"  # Directory containing .pts landmark files from BoneFinder
 TXT_FILE_PATH = f"{BASE_DIR}/{VISIT}/kxr_sq_bu{VISIT[1:]}.txt"  # Path to the master TXT file
 SHAPELR_NPZ = f"{BASE_DIR}/{VISIT}/id_shapes_LR_{VISIT}.npz"  # Optional: Pre-saved shapes file
 

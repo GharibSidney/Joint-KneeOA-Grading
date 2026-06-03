@@ -12,7 +12,7 @@ DATA_HALF = False
 
 # Dataset / Checkpoints
 DEFAULT_H5_FILE = "./original_data/V00/V00_knee_patches_patient_grouped_16_100_all_feature.h5"
-PRETRAINED_MODEL_PATH = "original_data/V00/Good_model_checkpoints_20260518_113417_epoch200_MIL_LCE_M0_C0_Fo_lr1e-04_b16"
+PRETRAINED_MODEL_PATH = "original_data/V00/100_OAI_k_fold"
 # Training hyperparameters
 KL_NUM_CLASSES = 5
 OARSI_TASKS = {
@@ -139,6 +139,11 @@ def get_args():
         default="",
         help="Patient ID for inference"
     )
+    parser.add_argument(
+        "--no_test_set",
+        action="store_true",
+        help="Disable held-out test set; use all data for k-fold cross-validation only"
+    )
 
     args = parser.parse_args()
 
@@ -167,7 +172,7 @@ def build_config():
     mtask_map = {"off": "0", "kl_jsn": "KJ", "all": "A"}
     cam_map = {"off": "0", "GradCAM": "GC", "GradCAMPlusPlus": "GPP", 
             "ScoreCAM": "SC", "AblationCAM": "AC", "LayerCAM": "LC"}
-
+    
     run_name = (
         f"{NOW}_{args.model_type}"
         f"_L{loss_map[args.lossfcn_type]}"
@@ -210,7 +215,7 @@ def build_config():
         "WANDB": not args.debug,
         "DATA_HALF": DATA_HALF,
         "DO_BOOTSTRAP": args.do_bootstrap,
-
+    
         # dataset paths
         "H5_FILE": DEFAULT_H5_FILE,
         "PRE_CHECKPOINT_DIR": args.pre_ckpt,
@@ -218,7 +223,8 @@ def build_config():
         "MEAN_STD_FILE_PATH": os.path.join(checkpoint_dir, "mean_std_train_patches.npy"),
         "PRETRAINED_MODEL_PATH": PRETRAINED_MODEL_PATH,
         "MEAN_STD_FILE_PATH_Optional": os.path.join(PRETRAINED_MODEL_PATH, "mean_std_train_patches.npy"),
-
+        "HAS_TEST_SET": not args.no_test_set,
+        
         # hyperparameters
         "FEATURE_EXTRACTOR_OUT_DIM": FEATURE_EXTRACTOR_OUT_DIM,
         "AGGREGATION_TYPE": AGGREGATION_TYPE,

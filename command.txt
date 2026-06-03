@@ -1,0 +1,5 @@
+# With test set (default)
+python train_k_fold.py
+
+# Without test set
+python train_k_fold.py --no_test_set

@@ -351,6 +351,9 @@ def main():
     shapes_L_list, shapes_R_list = [], []
     kl_L_list,    kl_R_list     = [], []
     aux_L_list,   aux_R_list    = [], []
+    skipped_landmarks = 0
+    skipped_no_labels = 0
+    skipped_invalid_kl = 0
 
     for rec in records:
         most_id = str(rec["most_id"])[:5]
@@ -363,6 +366,7 @@ def main():
         lm_R = read_pts_file(rec["pts_R"], EXPECTED_LANDMARKS_PER_KNEE)
 
         if lm_L is None or lm_R is None:
+            skipped_landmarks += 1 
             print(f"  Skipping {sid} due to landmark errors.")
             continue
 
@@ -372,14 +376,20 @@ def main():
         kl_R  = label_entry.get("kl_R",  -999)
 
         if kl_L == -999 or kl_R == -999:
+            skipped_no_labels += 1
             print(f"  Skipping {sid} due no labels.")
             continue 
 
-        if kl_L in INVALID_KL_GRADES or kl_R in INVALID_KL_GRADES:
-            print(f"  Skipping {sid}: KL grade out of range (L={kl_L}, R={kl_R}).")
-            continue
+        if kl_L in INVALID_KL_GRADES:
+            # skipped_invalid_kl += 1
+            # print(f"  Skipping {sid}: KL grade out of range (L={kl_L}, R={kl_R}).")
+            kl_L = -999
+            # continue
 
-        aux_L = label_entry.get("aux_L", [])
+        if kl_R in INVALID_KL_GRADES:
+            kl_R = -999
+
+        aux_L = label_entry.get("aux_L", []),
         aux_R = label_entry.get("aux_R", [])
 
         subject_ids.append(sid)
@@ -465,7 +475,19 @@ def main():
                     patch_half_width, TARGET_PATCH_SIZE,
                     PATCH_POINT_INDICES, flip=False,
                 )
+    total_skipped = (
+    skipped_landmarks
+    + skipped_no_labels
+    + skipped_invalid_kl
+)
 
+    print("\n=== Summary ===")
+    print(f"Total records discovered : {len(records)}")
+    print(f"Valid records collected  : {len(subject_ids)}")
+    print(f"Skipped (landmarks)      : {skipped_landmarks}")
+    print(f"Skipped (no labels)      : {skipped_no_labels}")
+    print(f"Skipped (invalid KL)     : {skipped_invalid_kl}")
+    print(f"Total skipped            : {total_skipped}")
     print(f"\nDone. HDF5 written to {OUTPUT_HDF5}")
 
 
