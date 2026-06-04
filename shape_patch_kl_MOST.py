@@ -314,9 +314,9 @@ def save_knee_to_hdf5(hf, group_key, knee_side, processed_image, shapes,
         patches_np = np.zeros((0, target_size[0], target_size[1], 1), dtype=np.float32)
 
     grp = hf.create_group(group_key)
-    grp.create_dataset("patches",                  data=patches_np,                              compression="gzip")
-    grp.create_dataset("kl_grade",                 data=np.array([kl_grade],        dtype=np.int32))
-    grp.create_dataset("aux_feature",              data=np.array([aux_features],    dtype=np.int32) if aux_features else np.array([], dtype=np.int32))
+    grp.create_dataset("patches", data=patches_np, compression="gzip")
+    grp.create_dataset("kl_grade", data=np.array([kl_grade], dtype=np.int32))
+    grp.create_dataset("aux_feature", data=np.array([aux_features], dtype=np.int32) if aux_features else np.array([], dtype=np.int32))
     grp.create_dataset("patch_source_point_indices", data=np.array(successful_indices, dtype=np.int32))
 
     grp.attrs["side"]                    = knee_side

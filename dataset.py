@@ -27,6 +27,17 @@ class KneeMILDataset(Dataset):
         self.kl_grade_mapping = kl_grade_mapping
         self.max_pixel_value = float(max_pixel_value) # Ensure it's a float for division
 
+        # Filter out samples with missing KL grade (-999)
+        with h5py.File(h5_file_path, 'r') as hf:
+            self.sample_group_names = [
+                name for name in sample_group_names_list
+                if hf[name]['kl_grade'][0] not in {-999, 8, 9}
+            ]
+
+        n_removed = len(sample_group_names_list) - len(self.sample_group_names)
+        if n_removed > 0:
+         print(f"Filtered out {n_removed} samples with KL grade in {{-999, 8, 9}}")
+
     def __getitem__(self, idx):
         group_name = self.sample_group_names[idx]
 

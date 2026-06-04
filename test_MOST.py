@@ -22,6 +22,7 @@ H5_FILE = "MOST_M00_knee_patches_16_100.h5"
 NPZ_FILE = "MOST_M00_shapes_LR.npz"
 
 
+
 class Config:
     def __init__(self, config_dict):
         for k, v in config_dict.items():
@@ -169,7 +170,7 @@ def main(config):
     )
 
     print(f"Loading checkpoint: {checkpoint_path}")
-
+    
     model.load_state_dict(
         torch.load(
             checkpoint_path,
@@ -178,7 +179,10 @@ def main(config):
     )
 
     model.to(config.DEVICE)
-
+    # Find the last linear layer and check its output size
+    for name, module in model.named_modules():
+        if hasattr(module, 'out_features'):
+            print(f"{name}: out_features = {module.out_features}")
     # --------------------------------------------------
     # Criterion
     # --------------------------------------------------
