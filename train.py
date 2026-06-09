@@ -326,8 +326,7 @@ def main(config):
     )
     
     train_pids, val_pids, _, _ = train_test_split(
-        train_val_pids,
-        np.array([patient_grade_map[pid] for pid in train_val_pids]),
+        train_val_pids, np.array([patient_grade_map[pid] for pid in train_val_pids]),
         test_size=0.25, stratify=[patient_grade_map[pid] for pid in train_val_pids],
         random_state=config.SEED
     )
