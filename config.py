@@ -13,7 +13,8 @@ DATA_HALF = False
 # Dataset / Checkpoints
 DEFAULT_H5_FILE = "./original_data/V00/V00_knee_patches_patient_grouped_16_100_all_feature.h5"
 # PRETRAINED_MODEL_PATH = "original_data/V00/100_OAI_k_fold"
-PRETRAINED_MODEL_PATH = "./original_data/V00/model_checkpoints_20260603_170134_epoch200_MIL_LCE_M0_C0_Fo_lr1e-04_b16"
+# PRETRAINED_MODEL_PATH = "./original_data/V00/model_train_OAI_KFOLD_tested_MOST"
+PRETRAINED_MODEL_PATH = "./original_data/V00/model_train_with_testset_OAI_5fold_kl+OARIS"
 # Training hyperparameters
 KL_NUM_CLASSES = 5
 OARSI_TASKS = {
