@@ -3,3 +3,13 @@ python train_k_fold.py
 
 # Without test set
 python train_k_fold.py --no_test_set
+
+# Without test set Kl + OARSI
+python train_k_fold.py  --seed 42 \
+  --model_type MIL_MultiTask_imedslab \
+  --lossfcn_type CrossEntropy_MultiTask \
+  --predict_criteria Max_Multitask \
+  --classweight_type all_metrics_inv \
+  --multitask_type all \
+  --note multi-task
+  --no_test_set
