@@ -284,4 +284,29 @@ if __name__ == "__main__":
 
     cfg.WANDB = False
 
+    # ------------------------------------------------------------------
+    # Default run configuration baked in so that a bare
+    #   python test_MOST_KL_OARSI.py --current_ckpt [MODEL_FOLDER]
+    # behaves as if the following flags were passed:
+    #   --model_type MIL_MultiTask_imedslab
+    #   --lossfcn_type CrossEntropy_MultiTask
+    #   --predict_criteria Max_Multitask
+    #   --classweight_type all_metrics_inv
+    #   --multitask_type all
+    #   --note demo
+    # ------------------------------------------------------------------
+    cfg.model_type = "MIL_MultiTask_imedslab"
+    cfg.lossfcn_type = "CrossEntropy_MultiTask"
+    cfg.predict_criteria = "Max_Multitask"
+    cfg.classweight_type = "all_metrics_inv"
+    cfg.multitask_type = "all"
+    cfg.note = "demo"
+    # build_config only sets the full 7-task dict when multitask_type=="all"
+    # is parsed from argv, so set it explicitly here since we override above.
+    cfg.OARSI_TASKS = {
+        "kl": 5, "jsnm": 4, "jsnl": 4, "osfm": 4, "ostm": 4, "ostl": 4, "osfl": 4
+    }
+
     main(cfg)
+
+
