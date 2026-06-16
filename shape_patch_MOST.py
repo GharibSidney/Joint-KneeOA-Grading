@@ -309,29 +309,27 @@ def create_patches_for_knee(processed_image, shapes, point_indices,
 # 
 
 def save_knee_to_hdf5(hf, group_key, knee_side, processed_image, shapes,
-                      kl_grade, aux_features, patch_half_width,
-                      target_size, point_indices, flip=False): #
+                      kl_grade, aux_features, oarsi,
+                      patch_half_width, target_size, point_indices, flip=False):
     """Save patches + metadata for one knee into an open HDF5 file."""
     if kl_grade == -999:
-        # Comment out the `return` below if you want to save unlabelled knees too.
-        # return
         pass
-
     patches, successful_indices = create_patches_for_knee(
         processed_image, shapes, point_indices,
         patch_half_width, target_size, horizontally_flip=flip,
     )
-
     if patches:
         patches_np = np.expand_dims(np.array(patches, dtype=np.float32), axis=-1)
     else:
         patches_np = np.zeros((0, target_size[0], target_size[1], 1), dtype=np.float32)
-
     grp = hf.create_group(group_key)
-    grp.create_dataset("patches", data=patches_np, compression="gzip")
-    grp.create_dataset("kl_grade", data=np.array([kl_grade], dtype=np.int32))
+    grp.create_dataset("patches",     data=patches_np, compression="gzip")
+    grp.create_dataset("kl_grade",    data=np.array([kl_grade], dtype=np.int32))
     grp.create_dataset("aux_feature", data=np.array([aux_features], dtype=np.int32) if aux_features else np.array([], dtype=np.int32))
     grp.create_dataset("patch_source_point_indices", data=np.array(successful_indices, dtype=np.int32))
+
+    for field, val in oarsi.items():
+        grp.create_dataset(field, data=np.array([val], dtype=np.int32))
 
     grp.attrs["side"]                    = knee_side
     grp.attrs["is_flipped"]              = bool(flip)
@@ -339,10 +337,8 @@ def save_knee_to_hdf5(hf, group_key, knee_side, processed_image, shapes,
     grp.attrs["original_num_points"]     = len(shapes)
     grp.attrs["requested_point_indices"] = point_indices.tolist()
     grp.attrs["patch_half_width"]        = patch_half_width
-
-    print(f"    Saved {patches_np.shape[0]} patches → '{group_key}' (KL {kl_grade})")
-
-
+    oarsi_str = ", ".join(f"{k}={v}" for k, v in oarsi.items())
+    print(f"    Saved {patches_np.shape[0]} patches → '{group_key}' (KL {kl_grade} | {oarsi_str})")
 # 
 # Main
 # 
@@ -431,82 +427,73 @@ def main():
     kl_L_np      = np.array(kl_L_list)
     kl_R_np      = np.array(kl_R_list)
     # 4. Save NPZ
-    np.savez(
-        OUTPUT_NPZ,
-        subject_ids=np.array(subject_ids),
-        image_ids=np.array(image_ids),
-        shapes_L=shapes_L_np,
-        shapes_R=shapes_R_np,
-        KL_L=kl_L_np,
-        KL_R=kl_R_np,
-        aux_L=np.array(aux_L_list, dtype=object),
-        aux_R=np.array(aux_R_list, dtype=object),
-        osteophyte_femur_lateral_L=np.array(osteophyte_femur_lateral_L_list),
-        osteophyte_femur_lateral_R=np.array(osteophyte_femur_lateral_R_list),
-        joint_space_lateral_L=np.array(joint_space_lateral_L_list),
-        joint_space_lateral_R=np.array(joint_space_lateral_R_list),
-        osteophyte_tibia_lateral_L=np.array(osteophyte_tibia_lateral_L_list),
-        osteophyte_tibia_lateral_R=np.array(osteophyte_tibia_lateral_R_list),
-        osteophyte_femur_medial_L=np.array(osteophyte_femur_medial_L_list),
-        osteophyte_femur_medial_R=np.array(osteophyte_femur_medial_R_list),
-        joint_space_medial_L=np.array(joint_space_medial_L_list),
-        joint_space_medial_R=np.array(joint_space_medial_R_list),
-        osteophyte_tibia_medial_L=np.array(osteophyte_tibia_medial_L_list),
-        osteophyte_tibia_medial_R=np.array(osteophyte_tibia_medial_R_list),
-    )
-    print(f"Shapes saved to {OUTPUT_NPZ}")
-
-    # 5. Build HDF5 with patches
-    print(f"\nBuilding patch HDF5 → {OUTPUT_HDF5}")
     with h5py.File(OUTPUT_HDF5, "w") as hf:
         dt = h5py.string_dtype(encoding="utf-8")
-        hf.create_dataset("subject_ids",   data=np.array(subject_ids, dtype=dt))
-        hf.create_dataset("image_ids",     data=np.array(image_ids,   dtype=dt))
+        hf.create_dataset("subject_ids",         data=np.array(subject_ids, dtype=dt))
+        hf.create_dataset("image_ids",           data=np.array(image_ids,   dtype=dt))
         hf.create_dataset("patch_point_indices", data=PATCH_POINT_INDICES)
 
-        for idx, (most_id, sid, iid, view_subdir) in enumerate( zip(most_ids, subject_ids, image_ids, view_subdirs)):
-                print(f"  [{idx+1}/{len(subject_ids)}] subject={sid}, image={iid}")
-                img_path = image_path_for( BASE_IMG_DIR, most_id, sid, view_subdir, iid)
-                try:
-                    dcm        = pydicom.dcmread(img_path)
-                    image_raw  = dcm.pixel_array.astype(np.float64)
-                except FileNotFoundError:
-                    print(f"    DICOM not found at {img_path} - skipping.")
-                    continue
-                except Exception as e:
-                    print(f"    DICOM read error: {e} - skipping.")
-                    continue
 
-                processed = process_xray(image_raw, 5, 99, 65535)
-                img_h, img_w = image_raw.shape
+        for idx, (most_id, sid, iid, view_subdir) in enumerate(
+                zip(most_ids, subject_ids, image_ids, view_subdirs)):
+            print(f"  [{idx+1}/{len(subject_ids)}] subject={sid}, image={iid}")
+            img_path = image_path_for(BASE_IMG_DIR, most_id, sid, view_subdir, iid)
+            try:
+                dcm        = pydicom.dcmread(img_path)
+                image_raw  = dcm.pixel_array.astype(np.float64)
+            except FileNotFoundError:
+                print(f"    DICOM not found at {img_path} - skipping.")
+                continue
+            except Exception as e:
+                print(f"    DICOM read error: {e} - skipping.")
+                continue
+            processed = process_xray(image_raw, 5, 99, 65535)
+            img_h, img_w = image_raw.shape
+            patch_half_width = (math.sqrt(PATCH_AREA_PX / (3560 * 4320)) * math.sqrt(img_h * img_w) / 2)
+            shapes_L = shapes_L_np[idx]
+            shapes_R = shapes_R_np[idx]
+            kl_L     = int(kl_L_np[idx])
+            kl_R     = int(kl_R_np[idx])
+            aux_L    = list(aux_L_list[idx])
+            aux_R    = list(aux_R_list[idx])
+            key_base = f"{most_id[0:5]}"
 
-                # Scale patch half-width to image resolution (same formula as OAI)
-                # TODO verify this line!!!
-                patch_half_width = (math.sqrt(PATCH_AREA_PX / (3560 * 4320)) * math.sqrt(img_h * img_w) / 2)
-                # print("image shape", img_h, img_w, patch_half_width)
-                # print("pixel spacing:", dcm.PixelSpacing if "PixelSpacing" in dcm else "N/A")
-                shapes_L = shapes_L_np[idx]   # (74, 2)
-                shapes_R = shapes_R_np[idx]
-                kl_L     = int(kl_L_np[idx])
-                kl_R     = int(kl_R_np[idx])
-                aux_L    = list(aux_L_list[idx])
-                aux_R    = list(aux_R_list[idx])
+            # Per-index OARSI scalars
+            oarsi_L = {
+                "osteophyte_femur_lateral": osteophyte_femur_lateral_L_list[idx],
+                "joint_space_lateral":      joint_space_lateral_L_list[idx],
+                "osteophyte_tibia_lateral": osteophyte_tibia_lateral_L_list[idx],
+                "osteophyte_femur_medial":  osteophyte_femur_medial_L_list[idx],
+                "joint_space_medial":       joint_space_medial_L_list[idx],
+                "osteophyte_tibia_medial":  osteophyte_tibia_medial_L_list[idx],
+            }
+            oarsi_R = {
+                "osteophyte_femur_lateral": osteophyte_femur_lateral_R_list[idx],
+                "joint_space_lateral":      joint_space_lateral_R_list[idx],
+                "osteophyte_tibia_lateral": osteophyte_tibia_lateral_R_list[idx],
+                "osteophyte_femur_medial":  osteophyte_femur_medial_R_list[idx],
+                "joint_space_medial":       joint_space_medial_R_list[idx],
+                "osteophyte_tibia_medial":  osteophyte_tibia_medial_R_list[idx],
+            }
 
-                # Group key: "<subject_id>_<image_id>_L" / "_R"
-                key_base = f"{most_id[0:5]}"
+            save_knee_to_hdf5(
+            hf, f"{key_base}_L", "L",
+            processed, shapes_L, kl_L, aux_L, oarsi_L,
+            patch_half_width, TARGET_PATCH_SIZE,
+            PATCH_POINT_INDICES, flip=True,)
 
-                save_knee_to_hdf5(
-                    hf, f"{key_base}_L", "L",
-                    processed, shapes_L, kl_L, aux_L,
-                    patch_half_width, TARGET_PATCH_SIZE,
-                    PATCH_POINT_INDICES, flip=True,
-                )
-                save_knee_to_hdf5(
-                    hf, f"{key_base}_R", "R",
-                    processed, shapes_R, kl_R, aux_R,
-                    patch_half_width, TARGET_PATCH_SIZE,
-                    PATCH_POINT_INDICES, flip=False,
-                )
+            save_knee_to_hdf5(
+            hf, f"{key_base}_R", "R",
+            processed, shapes_R, kl_R, aux_R, oarsi_R,
+            patch_half_width, TARGET_PATCH_SIZE,
+            PATCH_POINT_INDICES, flip=False,)
+
+            # Write OARSI scalars into the per-knee groups
+            # for field, val in oarsi_L.items():
+            #     hf[f"{key_base}_L"].create_dataset(field, data=val)
+            # for field, val in oarsi_R.items():
+            #     hf[f"{key_base}_R"].create_dataset(field, data=val)
+                
     total_skipped = (
     skipped_landmarks
     + skipped_no_labels
