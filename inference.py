@@ -1,4 +1,5 @@
 import os
+import json
 import shutil
 import numpy as np
 import h5py
@@ -278,24 +279,29 @@ def main(config):
     print(f"Total valid samples: {len(groups)}")
 
     # Train/val/test split
-    train_val, test, train_val_grades, _ = train_test_split(
-        np.array(groups), np.array(grades), test_size=0.2, stratify=grades, random_state=config.SEED
-    )
-    train, val, _, _ = train_test_split(
-        train_val, train_val_grades, test_size=0.25, stratify=train_val_grades, random_state=config.SEED
-    )
+    # train_val, test, train_val_grades, _ = train_test_split(
+    #     np.array(groups), np.array(grades), test_size=0.2, stratify=grades, random_state=config.SEED
+    # )
+    # train, val, _, _ = train_test_split(
+    #     train_val, train_val_grades, test_size=0.25, stratify=train_val_grades, random_state=config.SEED
+    # )
 
-    train_pids, val_pids, test_pids = train.tolist(), val.tolist(), test.tolist()
+    # train_pids, val_pids, test_pids = train.tolist(), val.tolist(), test.tolist()
+    with open("splits.json", "r") as f:
+        splits = json.load(f)
+
+    test_pids = splits["test"]
     if "9491446_R" in test_pids:  # remove bad image
+        
         test_pids.remove("9491446_R")
 
-    print(f"Training samples: {len(train_pids)}, Validation: {len(val_pids)}, Testing: {len(test_pids)}")
+    # print(f"Training samples: {len(train_pids)}, Validation: {len(val_pids)}, Testing: {len(test_pids)}")
 
     # Compute or load mean/std: normalizing input data before feeding it into the model.
     if os.path.exists(config.MEAN_STD_FILE_PATH):
         mean, std = np.load(config.MEAN_STD_FILE_PATH)
     else:
-        mean, std = calculate_mean_std(config.H5_FILE, train, config.MEAN_STD_FILE_PATH, config.DEFAULT_MAX_PIXEL_VALUE)
+        mean, std = calculate_mean_std(config.H5_FILE, splits["train"], config.MEAN_STD_FILE_PATH, config.DEFAULT_MAX_PIXEL_VALUE)
     print(f"Mean: {mean}, Std: {std}")
 
     train_transform, val_transform = create_transforms(mean, std)
@@ -329,9 +335,7 @@ def main(config):
     # ----------------- Training Loop ----------------- #
     test_loss, test_labels, test_preds, test_probs, all_attentions, all_patch_embeddings, all_aggregated_features = run_epoch(
         test_loader, model, model_org, criterion, optimizer, config.DEVICE,
-        is_training=False, config=config,
-        desc=f"[Testing]"
-    )
+        is_training=False, config=config, desc=f"[Testing]")
     print(f"\nTest Loss: {test_loss:.4f}")
     results = [f"Test Loss: {test_loss:.4f}"]
     test_metrics = compute_metrics(config.multitask_type, test_labels, test_preds)
@@ -446,9 +450,17 @@ def main(config):
 
     # ================== Visualization for a single example ==============================
     ######################################################################################
-    target_id = "9932578"
-    target_side = "R"
-    index = np.where(np.array(test_pids)==target_id + "_" + target_side)[0].item()
+    target_key = test_pids[0]
+    target_id, target_side = target_key.rsplit("_", 1)
+    target_key = target_id + "_" + target_side
+    matches = np.where(np.array(test_pids) == target_key)[0]
+
+    if len(matches) == 0:
+        raise ValueError(f"ID '{target_key}' not found in test_pids. "
+                        f"Sample entries: {test_pids[:5]}")
+
+    index = matches.item()
+    # index = np.where(np.array(test_pids)==target_id + "_" + target_side)[0].item()
     target_layer = [model.patch_feature_extractor.conv_block3[0]]
     patches_test, kl_label, id, oarsi_label = test_ds.__getitem__(index)
     
@@ -528,13 +540,13 @@ def main(config):
             patch_from_point_func=patchFromPoint,
             shapes_L_2d=shapes_L_2d,
             shapes_R_2d=shapes_R_2d,
-            file_path_template=f"./original_data/V00/Bilateral_PA_Fixed_Flexion_Knee/{patient_ids[index_all]}.dcm",
+            file_path_template=f"/data/net/datasets/OAI_Extracted/images/xray/V00/{patient_ids[index_all]}.dcm", #./original_data/V00/Bilateral_PA_Fixed_Flexion_Knee/
             patch_point_indices=PATCH_POINT_INDICES,
             cmap_obj=reds_alpha,
         )
 
     # ----------------- Bootstrapping ----------------- #
-    if config.do_bootstrap:
+    if config.DO_BOOTSTRAP:
         bootstrap_stats = bootstrap_evaluation(
             model, model_org, test_pids, config, criterion, n_iterations=5
         )
