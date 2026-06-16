@@ -7,8 +7,9 @@ from sklearn.metrics import classification_report, ConfusionMatrixDisplay
 import matplotlib.pyplot as plt
 
 from config import build_config
-from dataset import KneeMILDataset, mil_collate_fn
+from dataset import KneeMILDataset
 from losses import coral_multitask_predict
+
 from myutils import (
     compute_metrics,
     get_criterion,
@@ -45,6 +46,55 @@ class Config:
     def __init__(self, config_dict):
         for k, v in config_dict.items():
             setattr(self, k, v)
+
+
+def most_collate_fn(batch):
+    """
+    Collate function for the MOST dataset.
+
+    The default `mil_collate_fn` stacks each sample's `aux_feature` tensor, but
+    in the MOST HDF5 file those tensors have inconsistent shapes (some are
+    [1, 1, 0], others [0]) because `aux_feature` is essentially unused for MOST.
+    The OARSI targets are read separately (see `load_oarsi_targets`), so here we
+    simply skip stacking the features and return them as a list instead.
+    """
+    patch_bags = []
+    labels = []
+    ids = []
+    features = []
+
+    for item in batch:
+        if len(item) == 4:
+            item_patches, item_label, item_id, item_feature = item
+        else:
+            raise ValueError(
+                "Each sample in batch must be a (patches, label, id, feature) tuple."
+            )
+
+        if not item_patches:
+            print(f"Warning: Empty patch list for ID {item_id}")
+            continue
+
+        if isinstance(item_patches, list) and len(item_patches) > 0:
+            current_bag = torch.stack(item_patches, dim=0)
+        elif torch.is_tensor(item_patches) and item_patches.ndim == 4:
+            current_bag = item_patches
+        else:
+            continue
+
+        patch_bags.append(current_bag)
+        labels.append(item_label)
+        ids.append(item_id)
+        features.append(item_feature)
+
+    if not labels:
+        return None, None, None, None
+
+    labels_batch_tensor = torch.stack(labels, dim=0)
+
+    # Do NOT stack features (inconsistent shapes for MOST); return as a list.
+    return patch_bags, labels_batch_tensor, ids, features
+
 
 
 def load_oarsi_targets(h5_file, group_names):
@@ -172,7 +222,8 @@ def main(config):
         test_ds,
         batch_size=config.BATCH_SIZE,
         shuffle=False,
-        collate_fn=mil_collate_fn,
+        collate_fn=most_collate_fn,
+
         num_workers=config.NUM_WORKERS,
         pin_memory=config.PIN_MEMORY,
     )
