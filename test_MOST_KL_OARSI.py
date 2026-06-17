@@ -304,7 +304,11 @@ def main(config):
         plt.title(f"MOST {task.upper()} - Normalized Confusion Matrix")
         plt.tight_layout()
         cm_path = os.path.join(config.CHECKPOINT_DIR, f"cm_MOST_{task}.png")
-        plt.savefig(cm_path)
+
+        # Create parent directory of the output file
+        os.makedirs(os.path.dirname(cm_path), exist_ok=True)
+
+        plt.savefig(cm_path, bbox_inches="tight")
         plt.close()
         print(f"Confusion matrix saved to: {cm_path}")
 
