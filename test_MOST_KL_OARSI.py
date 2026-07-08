@@ -3,7 +3,8 @@ import h5py
 import numpy as np
 import torch
 from torch.utils.data import DataLoader
-from sklearn.metrics import classification_report, ConfusionMatrixDisplay
+from sklearn.metrics import classification_report, ConfusionMatrixDisplay, confusion_matrix
+from sklearn.metrics import accuracy_score, f1_score, cohen_kappa_score
 import matplotlib.pyplot as plt
 
 from config import build_config
@@ -40,6 +41,8 @@ OARSI_FIELD_TO_TASK = {
 # before computing metrics for that particular task.
 VALID_KL_LABELS = {0, 1, 2, 3, 4}
 VALID_OARSI_LABELS = {0, 1, 2, 3}
+
+PATH_TO_MODEL_DIRECTORY = "original_data/V00/train_KL_OARSI"
 
 
 class Config:
@@ -94,7 +97,6 @@ def most_collate_fn(batch):
 
     # Do NOT stack features (inconsistent shapes for MOST); return as a list.
     return patch_bags, labels_batch_tensor, ids, features
-
 
 
 def load_oarsi_targets(h5_file, group_names):
@@ -193,7 +195,7 @@ def main(config):
 
     if config.multitask_type != "all":
         raise ValueError(
-            "test_MOST_KL&OARSI.py must be run with --multitask_type all "
+            "test_MOST_KL_OARSI.py must be run with --multitask_type all "
             f"(got '{config.multitask_type}')."
         )
 
@@ -205,7 +207,7 @@ def main(config):
 
     test_pids = [k for k in all_keys if k not in EXCLUDED_KEYS]
 
-    print(f"Testing samples (before KL filtering): {len(test_pids)}")
+    print(f"All MOST groups (before KL filtering): {len(test_pids)}")
 
     # --------------------------------------------------
     # Mean / std
@@ -223,7 +225,6 @@ def main(config):
         batch_size=config.BATCH_SIZE,
         shuffle=False,
         collate_fn=most_collate_fn,
-
         num_workers=config.NUM_WORKERS,
         pin_memory=config.PIN_MEMORY,
     )
@@ -234,100 +235,173 @@ def main(config):
     oarsi_by_group = load_oarsi_targets(H5_FILE, test_ds.sample_group_names)
 
     # --------------------------------------------------
-    # Model
-    # --------------------------------------------------
-    model = get_model(config)
-
-    checkpoint_path = os.path.join(
-        config.PRETRAINED_MODEL_PATH,
-        "best_model_kl_kappa.pth"
-    )
-    print(f"Loading checkpoint: {checkpoint_path}")
-
-    model.load_state_dict(
-        torch.load(checkpoint_path, map_location=config.DEVICE)
-    )
-    model.to(config.DEVICE)
-
-    # --------------------------------------------------
-    # Criterion (kept for parity with other scripts; not used for scoring)
+    # Criterion (kept for parity; not used for scoring)
     # --------------------------------------------------
     criterion = get_criterion(config.lossfcn_type, None, config.OARSI_TASKS)
 
-    # --------------------------------------------------
-    # Test
-    # --------------------------------------------------
-    test_labels, test_preds = run_epoch(
-        test_loader, model, criterion, config.DEVICE, config, oarsi_by_group
-    )
+    # ======================================================================
+    #                           K-FOLD INFERENCE
+    # ======================================================================
+    config.K_FOLDS = 5
 
-    # --------------------------------------------------
-    # Metrics / reports / confusion matrices (per task, valid values only)
-    # --------------------------------------------------
-    results = ["=== MOST KL & OARSI Inference ==="]
+    tasks = list(config.OARSI_TASKS.keys())
 
-    for task in config.OARSI_TASKS.keys():
-        labels, preds = filter_valid_pairs(task, test_labels[task], test_preds[task])
+    metrics_per_task = {}   # {task: {"acc": [], "f1": [], "kappa": []}}
+    agg_cm_raw_mt = {}      # {task: np.ndarray}
 
-        if len(labels) == 0:
-            line = f"[{task}] No valid samples - skipped."
-            print(line)
-            results.append(line)
+    for fold in range(config.K_FOLDS):
+
+        print(f"\n========== Inference Fold {fold+1}/{config.K_FOLDS} ==========")
+
+        # ----------------- Model ----------------- #
+        model = get_model(config)
+        model.to(config.DEVICE)
+
+        ckpt_name = f"best_model_avg_kappa_fold{fold+1}.pth"
+        ckpt_path = os.path.join(PATH_TO_MODEL_DIRECTORY, ckpt_name)
+
+        if not os.path.exists(ckpt_path):
+            print(f"[WARNING] Missing checkpoint: {ckpt_name}, skipping this fold.")
             continue
 
-        metrics = compute_metrics("off", labels, preds)["kl"]
-        acc = metrics["acc"]
-        f1 = metrics["f1"]
-        kappa = metrics["kappa"]
+        print(f"[INFO] Loading checkpoint: {ckpt_name}")
+        model.load_state_dict(torch.load(ckpt_path, map_location=config.DEVICE))
 
-        header = (
-            f"[Test] {task.upper()} (n={len(labels)}) - "
-            f"Acc: {acc:.4f}, F1: {f1:.4f}, Kappa: {kappa:.4f}"
+        # ----------------- Run inference ----------------- #
+        test_labels, test_preds = run_epoch(
+            test_loader, model, criterion, config.DEVICE, config, oarsi_by_group
         )
-        print("\n" + header)
-        results.append(header)
 
-        num_classes = config.OARSI_TASKS[task]
-        report = classification_report(labels, preds, zero_division=0)
-        print(report)
-        results.append(f"\n[{task}]\n" + report)
+        # ----------------- Per-task metrics, reports, and confusion matrices ----------------- #
+        for task in tasks:
+            labels, preds = filter_valid_pairs(task, test_labels[task], test_preds[task])
 
-        # Confusion matrix
-        plt.figure(figsize=(8, 8))
-        ConfusionMatrixDisplay.from_predictions(
-            labels,
-            preds,
-            normalize="true",
-            cmap=plt.cm.Blues,
-            values_format=".2f",
-        )
-        plt.title(f"MOST {task.upper()} - Normalized Confusion Matrix")
-        plt.tight_layout()
-        cm_path = os.path.join(config.CHECKPOINT_DIR, f"cm_MOST_{task}.png")
+            if len(labels) == 0:
+                print(f"[Fold {fold+1}] [{task}] No valid samples - skipped.")
+                continue
 
-        # Create parent directory of the output file
-        os.makedirs(os.path.dirname(cm_path), exist_ok=True)
+            acc = accuracy_score(labels, preds)
+            f1 = f1_score(labels, preds, average='macro', zero_division=0)
+            kappa = cohen_kappa_score(labels, preds, weights="quadratic")
 
-        plt.savefig(cm_path, bbox_inches="tight")
-        plt.close()
-        print(f"Confusion matrix saved to: {cm_path}")
+            print(f"[Fold {fold+1}] {task} - Acc={acc:.4f} F1(macro)={f1:.4f} Kappa={kappa:.4f}")
 
-        # Save per-task predictions
+            report = classification_report(labels, preds, zero_division=0)
+
+            # Save report
+            report_path = os.path.join(config.CHECKPOINT_DIR, f"classification_{task}_fold{fold+1}.txt")
+            os.makedirs(os.path.dirname(report_path), exist_ok=True)
+            with open(report_path, "w") as f:
+                f.write(report)
+                f.write("\n")
+                f.write(f"Acc   = {acc:.4f}\n")
+                f.write(f"F1    = {f1:.4f}\n")
+                f.write(f"Kappa = {kappa:.4f}\n")
+
+            # Accumulate raw confusion matrix (sum across folds)
+            fold_cm_raw = confusion_matrix(labels, preds)
+            if task not in agg_cm_raw_mt:
+                agg_cm_raw_mt[task] = fold_cm_raw.copy()
+            else:
+                agg_cm_raw_mt[task] += fold_cm_raw
+
+            # Confusion matrix
+            plt.rcParams.update({
+                "font.size": 16,
+                "axes.titlesize": 14,
+                "xtick.labelsize": 14,
+                "ytick.labelsize": 14,
+            })
+            disp = ConfusionMatrixDisplay.from_predictions(
+                labels, preds, normalize="true", cmap=plt.cm.Greens, values_format='.2f'
+            )
+            ax = disp.ax_
+            for text in ax.texts:
+                text.set_fontsize(16)
+            ax.tick_params(axis='both', which='major', labelsize=14)
+            ax.xaxis.label.set_size(14)
+            ax.yaxis.label.set_size(14)
+            plt.tight_layout()
+            cm_path = os.path.join(config.CHECKPOINT_DIR, f"cm_{task}_fold{fold+1}.png")
+            os.makedirs(os.path.dirname(cm_path), exist_ok=True)
+            plt.savefig(cm_path, bbox_inches="tight")
+            plt.close()
+
+            # Store for final stats
+            if task not in metrics_per_task:
+                metrics_per_task[task] = {"acc": [], "f1": [], "kappa": []}
+            metrics_per_task[task]["acc"].append(acc)
+            metrics_per_task[task]["f1"].append(f1)
+            metrics_per_task[task]["kappa"].append(kappa)
+
+        # Save predictions for this fold
         np.savez(
-            os.path.join(config.CHECKPOINT_DIR, f"test_pred_MOST_{task}.npz"),
-            pred=np.array(preds),
-            true=np.array(labels),
+            os.path.join(config.CHECKPOINT_DIR, f"test_pred_fold{fold+1}.npz"),
+            id=test_ds.sample_group_names,
+            pred=test_preds,
+            true=test_labels,
         )
 
-    # --------------------------------------------------
-    # Save text summary
-    # --------------------------------------------------
-    save_path = os.path.join(config.CHECKPOINT_DIR, "MOST_inference_result.txt")
-    with open(save_path, "w") as f:
-        for line in results:
-            f.write(line + "\n")
-    print(f"\nResults written to: {save_path}")
+        plt.close('all')
 
+    # ----------------- AGGREGATED CONFUSION MATRICES ----------------- #
+    for task, cm_raw in agg_cm_raw_mt.items():
+        cm_norm = cm_raw.astype(np.float64)
+        row_sums = cm_norm.sum(axis=1, keepdims=True)
+        cm_norm = np.divide(cm_norm, row_sums, where=row_sums != 0)
+
+        num_classes = cm_norm.shape[0]
+        class_names = [str(i) for i in range(num_classes)]
+
+        plt.rcParams.update({
+            "font.size": 16,
+            "axes.titlesize": 14,
+            "xtick.labelsize": 14,
+            "ytick.labelsize": 14,
+        })
+        disp = ConfusionMatrixDisplay(
+            cm_norm, display_labels=class_names
+        )
+        disp.plot(cmap=plt.cm.Greens, values_format='.2f')
+        ax = disp.ax_
+        for text in ax.texts:
+            text.set_fontsize(16)
+        ax.tick_params(axis='both', which='major', labelsize=14)
+        ax.xaxis.label.set_size(14)
+        ax.yaxis.label.set_size(14)
+        plt.tight_layout()
+        cm_path = os.path.join(config.CHECKPOINT_DIR, f"cm_{task}_aggregated.png")
+        os.makedirs(os.path.dirname(cm_path), exist_ok=True)
+        plt.savefig(cm_path)
+        plt.close()
+        print(f"[INFO] Aggregated confusion matrix for {task} saved as cm_{task}_aggregated.png")
+
+    # ----------------- CROSS-FOLD STATISTICAL SUMMARY ----------------- #
+    print("\n===== Cross-fold Statistical Summary =====")
+
+    summary_path = os.path.join(config.CHECKPOINT_DIR, "metrics_summary_kappa.txt")
+    os.makedirs(os.path.dirname(summary_path), exist_ok=True)
+    with open(summary_path, "w") as f:
+        for task, vals in metrics_per_task.items():
+            acc_arr = np.array(vals["acc"])
+            f1_arr = np.array(vals["f1"])
+            kappa_arr = np.array(vals["kappa"])
+
+            acc_mean, acc_std = acc_arr.mean(), acc_arr.std()
+            f1_mean, f1_std = f1_arr.mean(), f1_arr.std()
+            kappa_mean, kappa_std = kappa_arr.mean(), kappa_arr.std()
+
+            print(f"\nTask: {task}")
+            print(f"  Acc   = {acc_mean:.4f} ± {acc_std:.4f}")
+            print(f"  F1    = {f1_mean:.4f} ± {f1_std:.4f}")
+            print(f"  Kappa = {kappa_mean:.4f} ± {kappa_std:.4f}")
+
+            f.write(f"Task: {task}\n")
+            f.write(f"  Acc   = {acc_mean:.4f} ± {acc_std:.4f}\n")
+            f.write(f"  F1    = {f1_mean:.4f} ± {f1_std:.4f}\n")
+            f.write(f"  Kappa = {kappa_mean:.4f} ± {kappa_std:.4f}\n\n")
+
+    print(f"\nSummary saved to: {summary_path}")
     print("\nTesting finished.")
 
 
@@ -363,5 +437,3 @@ if __name__ == "__main__":
     }
 
     main(cfg)
-
-
