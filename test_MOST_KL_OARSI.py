@@ -212,7 +212,7 @@ def main(config):
     # --------------------------------------------------
     # Mean / std
     # --------------------------------------------------
-    mean, std = np.load(config.MEAN_STD_FILE_PATH_Optional)
+    mean, std = np.load("original_data/V00/train_KL_OARSI/mean_std_train_patches.npy") #np.load(config.MEAN_STD_FILE_PATH_Optional)
     _, val_transform = create_transforms(mean, std)
 
     # --------------------------------------------------
