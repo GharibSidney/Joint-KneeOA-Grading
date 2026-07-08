@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 from config import build_config
 from dataset import KneeMILDataset
-from losses import coral_multitask_predict
+from losses import coral_multitask_predict, coral_predict
 
 from myutils import (
     get_criterion,
@@ -83,10 +83,14 @@ def run_epoch(loader, model, device, config):
 
     model.eval()
 
-    tasks = list(config.OARSI_TASKS.keys())  # e.g. ["kl", "jsnm", "jsnl", "osfm", "ostm", "ostl", "osfl"]
-
-    all_preds = {task: [] for task in tasks}
-    all_labels = {task: [] for task in tasks}
+    # Prepare prediction containers
+    if config.multitask_type == "off":
+        all_preds = []
+        all_labels = []
+    else:
+        tasks = list(config.OARSI_TASKS.keys())
+        all_preds = {task: [] for task in tasks}
+        all_labels = {task: [] for task in tasks}
 
     for list_of_patch_bags, labels_batch, group_names, list_of_features in loader:
         if not list_of_patch_bags:
@@ -108,26 +112,33 @@ def run_epoch(loader, model, device, config):
         with torch.no_grad():
             outputs, _, _, _ = model(moved_bags)
 
-        # Predictions: multi-task model outputs, but we extract KL from it
-        # The model outputs dicts for all tasks; we need to handle this
-        if config.predict_criteria == "Coral_Multitask":
-            predicted, _ = coral_multitask_predict(outputs)
-            for task in tasks:
-                pred = predicted[task][0]
-                all_preds[task].extend(pred.cpu().numpy())
-                # For KL, use labels_batch; for OARSI tasks we don't have labels, fill with -999
-                if task == "kl":
-                    all_labels[task].extend(labels_batch.cpu().numpy())
-                else:
-                    all_labels[task].extend([-999] * len(pred))
-        else:  # Max_Multitask
-            for task in tasks:
-                _, pred = torch.max(outputs[task].data, 1)
-                all_preds[task].extend(pred.cpu().numpy())
-                if task == "kl":
-                    all_labels[task].extend(labels_batch.cpu().numpy())
-                else:
-                    all_labels[task].extend([-999] * len(pred))
+        # Predictions
+        if config.multitask_type == "off":
+            if config.predict_criteria == "Coral":
+                predicted, _ = coral_predict(outputs)
+            else:  # Max
+                _, predicted = torch.max(outputs.data, 1)
+            all_preds.extend(predicted.cpu().numpy())
+            all_labels.extend(labels_batch.cpu().numpy())
+        else:
+            # Multi-task
+            if config.predict_criteria == "Coral_Multitask":
+                predicted, _ = coral_multitask_predict(outputs)
+                for task in tasks:
+                    pred = predicted[task][0]
+                    all_preds[task].extend(pred.cpu().numpy())
+                    if task == "kl":
+                        all_labels[task].extend(labels_batch.cpu().numpy())
+                    else:
+                        all_labels[task].extend([-999] * len(pred))
+            else:  # Max_Multitask
+                for task in tasks:
+                    _, pred = torch.max(outputs[task].data, 1)
+                    all_preds[task].extend(pred.cpu().numpy())
+                    if task == "kl":
+                        all_labels[task].extend(labels_batch.cpu().numpy())
+                    else:
+                        all_labels[task].extend([-999] * len(pred))
 
     return all_labels, all_preds
 
@@ -198,8 +209,12 @@ def main(config):
         )
 
         # ----------------- KL metrics ----------------- #
-        labels = [int(l) for l in test_labels["kl"]]
-        preds = [int(p) for p in test_preds["kl"]]
+        if config.multitask_type == "off":
+            labels = [int(l) for l in test_labels]
+            preds = [int(p) for p in test_preds]
+        else:
+            labels = [int(l) for l in test_labels["kl"]]
+            preds = [int(p) for p in test_preds["kl"]]
 
         acc = accuracy_score(labels, preds)
         f1 = f1_score(labels, preds, average='macro', zero_division=0)
