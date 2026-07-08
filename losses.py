@@ -12,7 +12,7 @@ class CrossEntropy_MultiTask(nn.Module):
         super(CrossEntropy_MultiTask, self).__init__()
         self.class_weights = {}
         if class_weights is not None:
-            # normalize each task’s weight tensor
+            # normalize each task's weight tensor
             for task, w in class_weights.items():
                 if w is not None:
                     self.class_weights[task] = w / w.mean()
@@ -23,27 +23,24 @@ class CrossEntropy_MultiTask(nn.Module):
         total_loss = 0
         loss_dict = {}
         num_tasks = 0
-        
+
         for task, preds in outputs.items():
             if task not in targets:
                 continue
-
             weights = self.class_weights.get(task, None)
             l = F.cross_entropy(
-                preds, 
+                preds,
                 targets[task].long(),
                 weight=weights,
                 reduction="mean"
             )
-            task_weight = 1.0 if task == 'kl' else 0.2
+            task_weight = 1.0 if task == 'kl' else 0.5
             total_loss += l * task_weight
-            loss_dict[task] = l.item() 
+            loss_dict[task] = l.item()
             num_tasks += 1
 
-        
         if num_tasks > 0:
             total_loss = total_loss / num_tasks
-
         return total_loss, loss_dict
 
 class CoralLossWeighted(nn.Module):

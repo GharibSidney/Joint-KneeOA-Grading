@@ -3,17 +3,28 @@ import matplotlib.pyplot as plt
 import math
 import os
 
-folder = "original_data/V00/model_train_with_testset_OAI_5fold_kl+OARIS"
-
-image_paths = [
-    f"{folder}/cm_jsnl.png",
-    f"{folder}/cm_jsnm.png",
-    f"{folder}/cm_osfl.png",
-    f"{folder}/cm_ostm.png",
-    f"{folder}/cm_osfm.png",
-    f"{folder}/cm_ostl.png",
-    f"{folder}/cm_kl.png",
-]
+folder= "original_data/V00/results_model_5kfold_train_ALL_OAI_kl+OARIS"
+tested_MOST = False
+if tested_MOST:
+        image_paths = [
+        f"{folder}/cm_MOST_jsnl.png",
+        f"{folder}/cm_MOST_jsnm.png",
+        f"{folder}/cm_MOST_osfl.png",
+        f"{folder}/cm_MOST_ostm.png",
+        f"{folder}/cm_MOST_osfm.png",
+        f"{folder}/cm_MOST_ostl.png",
+        f"{folder}/cm_MOST_kl.png",
+    ]
+else:
+    image_paths = [
+        f"{folder}/cm_jsnl.png",
+        f"{folder}/cm_jsnm.png",
+        f"{folder}/cm_osfl.png",
+        f"{folder}/cm_ostm.png",
+        f"{folder}/cm_osfm.png",
+        f"{folder}/cm_ostl.png",
+        f"{folder}/cm_kl.png",
+    ]
 
 cols = 2  # 2 graphs per row
 rows = math.ceil(len(image_paths) / cols)

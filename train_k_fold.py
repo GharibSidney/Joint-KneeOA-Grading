@@ -115,6 +115,11 @@ def main(config):
             test_size=0.2, stratify=unique_patient_grades, random_state=split_seed)
 
         test_pids        = groups[np.isin(patient_ids, test_patients)].tolist()
+        import json
+
+        with open("test_pids_temp.json", "w") as f:
+            json.dump(test_pids, f)
+            
         train_val_mask   = np.isin(patient_ids, train_val_patients)
         train_val_groups     = groups[train_val_mask]
         train_val_grades_arr = grades[train_val_mask]

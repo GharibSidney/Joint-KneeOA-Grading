@@ -287,10 +287,10 @@ def main(config):
     # )
 
     # train_pids, val_pids, test_pids = train.tolist(), val.tolist(), test.tolist()
-    with open("splits.json", "r") as f:
+    with open("test_pids_temp.json", "r") as f:
         splits = json.load(f)
 
-    test_pids = splits["test"]
+    test_pids = splits
     if "9491446_R" in test_pids:  # remove bad image
         
         test_pids.remove("9491446_R")

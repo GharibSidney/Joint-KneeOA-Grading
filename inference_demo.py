@@ -240,8 +240,8 @@ def main(config):
 
     model.load_state_dict(torch.load(
             os.path.join(config.CHECKPOINT_DIR, f"best_model_{config.inference_target}_kappa.pth"), 
-            map_location=config.DEVICE
-        ))
+            map_location=config.DEVICE))
+    
     if model_org:
         model_org.load_state_dict(torch.load(config.PRETRAINED_MODEL_PATH, map_location=config.DEVICE))
         
