@@ -340,7 +340,23 @@ def main(config):
                 f.write(f"Kappa = {kappa:.4f}\n")
 
             # confusion matrix
-            ConfusionMatrixDisplay.from_predictions(labels, preds, normalize="true")
+            plt.rcParams.update({
+                "font.size": 16,
+                "axes.titlesize": 14,
+                "xtick.labelsize": 14,
+                "ytick.labelsize": 14,
+            })
+            disp = ConfusionMatrixDisplay.from_predictions(
+                labels, preds, normalize="true", cmap=plt.cm.Greens, values_format='.2f'
+            )
+            ax = disp.ax_
+            for text in ax.texts:
+                text.set_fontsize(16)
+
+            ax.tick_params(axis='both', which='major', labelsize=14)
+            ax.xaxis.label.set_size(14)
+            ax.yaxis.label.set_size(14)
+            plt.tight_layout()
             plt.savefig(os.path.join(config.CHECKPOINT_DIR, f"cm_fold{fold+1}.png"))
             plt.close()
             print(report)
@@ -376,7 +392,23 @@ def main(config):
                     f.write(f"Kappa = {kappa:.4f}\n")
 
                 # confusion matrix
-                ConfusionMatrixDisplay.from_predictions(labels, preds, normalize="true", cmap="Greens")
+                plt.rcParams.update({
+                    "font.size": 16,
+                    "axes.titlesize": 14,
+                    "xtick.labelsize": 14,
+                    "ytick.labelsize": 14,
+                })
+                disp = ConfusionMatrixDisplay.from_predictions(
+                    labels, preds, normalize="true", cmap=plt.cm.Greens, values_format='.2f'
+                )
+                ax = disp.ax_
+                for text in ax.texts:
+                    text.set_fontsize(16)
+
+                ax.tick_params(axis='both', which='major', labelsize=14)
+                ax.xaxis.label.set_size(14)
+                ax.yaxis.label.set_size(14)
+                plt.tight_layout()
                 plt.savefig(os.path.join(config.CHECKPOINT_DIR, f"cm_{task}_fold{fold+1}.png"))
                 plt.close()
                 print(report)
