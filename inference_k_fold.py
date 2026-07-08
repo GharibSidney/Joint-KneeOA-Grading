@@ -32,7 +32,7 @@ from myutils import (
 )
 from sklearn.model_selection import StratifiedKFold
 # from inference import run_epoch, Config
-
+PATH_TO_MODEL_DIRECTORY = "original_data/V00/train_KL_only"
 class Config:
     def __init__(self, config_dict):
         for k, v in config_dict.items():
@@ -211,7 +211,11 @@ def main(config):
     train_val, test, train_val_grades, _ = train_test_split(
         groups, grades, test_size=0.2, stratify=grades, random_state=split_seed
     )
-    test_pids = test.tolist()
+    # test_pids = test.tolist()
+    import json
+
+    with open("test_pids_temp_KL_ONLY.json", "r") as f:
+        test_pids = json.load(f)
 
     print(f"[INFO] Test set size = {len(test_pids)}")
 
@@ -269,7 +273,7 @@ def main(config):
         model_org = get_model_org(config)
 
         ckpt_name = f"best_model_avg_{metrics}_fold{fold+1}.pth"
-        ckpt_path = os.path.join(config.CHECKPOINT_DIR, ckpt_name)
+        ckpt_path = os.path.join(PATH_TO_MODEL_DIRECTORY, ckpt_name) #config.CHECKPOINT_DIR
 
         if not os.path.exists(ckpt_path):
             print(f"[WARNING] Missing checkpoint: {ckpt_name}, skipping this fold.")
@@ -372,7 +376,7 @@ def main(config):
                     f.write(f"Kappa = {kappa:.4f}\n")
 
                 # confusion matrix
-                ConfusionMatrixDisplay.from_predictions(labels, preds, normalize="true")
+                ConfusionMatrixDisplay.from_predictions(labels, preds, normalize="true", cmap="Greens")
                 plt.savefig(os.path.join(config.CHECKPOINT_DIR, f"cm_{task}_fold{fold+1}.png"))
                 plt.close()
                 print(report)
