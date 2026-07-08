@@ -5,7 +5,7 @@ import h5py
 import matplotlib.pyplot as plt
 from tqdm.auto import tqdm
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, ConfusionMatrixDisplay
+from sklearn.metrics import classification_report, ConfusionMatrixDisplay, confusion_matrix
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
@@ -263,6 +263,9 @@ def main(config):
 
     metrics_per_task = {}   # record acc/f1/kappa across folds
 
+    # accumulators for aggregated (summed across folds) raw confusion matrices
+    agg_cm_raw = None          # single-task (KL-only)
+    agg_cm_raw_mt = {}         # multi-task: {task_name: np.ndarray}
 
     for fold in range(config.K_FOLDS):
 
@@ -339,6 +342,13 @@ def main(config):
                 f.write(f"F1    = {f1:.4f}\n")
                 f.write(f"Kappa = {kappa:.4f}\n")
 
+            # accumulate raw confusion matrix (sum across folds)
+            fold_cm_raw = confusion_matrix(labels, preds)
+            if agg_cm_raw is None:
+                agg_cm_raw = fold_cm_raw.copy()
+            else:
+                agg_cm_raw += fold_cm_raw
+
             # confusion matrix
             plt.rcParams.update({
                 "font.size": 16,
@@ -382,6 +392,13 @@ def main(config):
                 print(f"[Fold {fold+1}] {task} - Acc={acc:.4f} F1={f1:.4f} Kappa={kappa:.4f}")
 
                 report = classification_report(labels, preds)
+
+                # accumulate raw confusion matrix (sum across folds)
+                fold_cm_raw = confusion_matrix(labels, preds)
+                if task not in agg_cm_raw_mt:
+                    agg_cm_raw_mt[task] = fold_cm_raw.copy()
+                else:
+                    agg_cm_raw_mt[task] += fold_cm_raw
 
                 # save report
                 with open(os.path.join(config.CHECKPOINT_DIR, f"classification_{task}_fold{fold+1}.txt"), "w") as f:
@@ -428,7 +445,67 @@ def main(config):
         plt.close('all')
     
     print(metrics_per_task)
-            
+
+    # ----------------- AGGREGATED CONFUSION MATRIX ----------------- #
+    if agg_cm_raw is not None:
+        # normalize the summed raw matrix row-wise
+        agg_cm_norm = agg_cm_raw.astype(np.float64)
+        row_sums = agg_cm_norm.sum(axis=1, keepdims=True)
+        agg_cm_norm = np.divide(agg_cm_norm, row_sums, where=row_sums != 0)
+
+        num_classes = agg_cm_norm.shape[0]
+        class_names = [str(i) for i in range(num_classes)]
+
+        plt.rcParams.update({
+            "font.size": 16,
+            "axes.titlesize": 14,
+            "xtick.labelsize": 14,
+            "ytick.labelsize": 14,
+        })
+        disp = ConfusionMatrixDisplay(
+            agg_cm_norm, display_labels=class_names
+        )
+        disp.plot(cmap=plt.cm.Greens, values_format='.2f')
+        ax = disp.ax_
+        for text in ax.texts:
+            text.set_fontsize(16)
+        ax.tick_params(axis='both', which='major', labelsize=14)
+        ax.xaxis.label.set_size(14)
+        ax.yaxis.label.set_size(14)
+        plt.tight_layout()
+        plt.savefig(os.path.join(config.CHECKPOINT_DIR, "cm_aggregated.png"))
+        plt.close()
+        print("[INFO] Aggregated confusion matrix saved as cm_aggregated.png")
+
+    for task, cm_raw in agg_cm_raw_mt.items():
+        cm_norm = cm_raw.astype(np.float64)
+        row_sums = cm_norm.sum(axis=1, keepdims=True)
+        cm_norm = np.divide(cm_norm, row_sums, where=row_sums != 0)
+
+        num_classes = cm_norm.shape[0]
+        class_names = [str(i) for i in range(num_classes)]
+
+        plt.rcParams.update({
+            "font.size": 16,
+            "axes.titlesize": 14,
+            "xtick.labelsize": 14,
+            "ytick.labelsize": 14,
+        })
+        disp = ConfusionMatrixDisplay(
+            cm_norm, display_labels=class_names
+        )
+        disp.plot(cmap=plt.cm.Greens, values_format='.2f')
+        ax = disp.ax_
+        for text in ax.texts:
+            text.set_fontsize(16)
+        ax.tick_params(axis='both', which='major', labelsize=14)
+        ax.xaxis.label.set_size(14)
+        ax.yaxis.label.set_size(14)
+        plt.tight_layout()
+        plt.savefig(os.path.join(config.CHECKPOINT_DIR, f"cm_{task}_aggregated.png"))
+        plt.close()
+        print(f"[INFO] Aggregated confusion matrix for {task} saved as cm_{task}_aggregated.png")
+
     # ----------------- CROSS-FOLD STATISTICAL SUMMARY ----------------- #
     print("\n===== Cross-fold Statistical Summary =====")
 
