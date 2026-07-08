@@ -36,3 +36,13 @@ python train_k_fold.py  --seed 42 \
   --multitask_type all \
   --note multi-task
   --note KL_and_OARSI
+
+  python inference_k_fold.py \
+  --seed 42 \
+  --inference_target kl \
+  --model_type MIL_MultiTask_imedslab \
+  --lossfcn_type CrossEntropy_MultiTask \
+  --predict_criteria Max_Multitask \
+  --classweight_type all_metrics_inv \
+  --multitask_type all \
+  --note KL_and_OARSI

@@ -32,7 +32,7 @@ from myutils import (
 )
 from sklearn.model_selection import StratifiedKFold
 # from inference import run_epoch, Config
-PATH_TO_MODEL_DIRECTORY = "original_data/V00/train_KL_only"
+PATH_TO_MODEL_DIRECTORY = "original_data/V00/train_KL_OARSI"
 class Config:
     def __init__(self, config_dict):
         for k, v in config_dict.items():
