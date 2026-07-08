@@ -24,7 +24,7 @@ NPZ_FILE = "MOST_M00_shapes_LR.npz"
 # Metadata datasets stored at the top level of the HDF5 file (not knee groups)
 EXCLUDED_KEYS = {"subject_ids", "image_ids", "patch_point_indices"}
 
-PATH_TO_MODEL_DIRECTORY = "original_data/V00/train_KL_OARSI"
+PATH_TO_MODEL_DIRECTORY = "original_data/V00/train_KL_only"
 
 
 class Config:
@@ -147,7 +147,7 @@ def main(config):
     # --------------------------------------------------
     # Mean / std
     # --------------------------------------------------
-    mean, std = np.load(config.MEAN_STD_FILE_PATH_Optional)
+    mean, std =  np.load("original_data/V00/train_KL_only/mean_std_train_patches.npy")#np.load(config.MEAN_STD_FILE_PATH_Optional)
     _, val_transform = create_transforms(mean, std)
 
     # --------------------------------------------------
@@ -335,26 +335,18 @@ if __name__ == "__main__":
     cfg.WANDB = False
 
     # ------------------------------------------------------------------
-    # Default run configuration baked in so that a bare
-    #   python test_MOST_KL.py --current_ckpt [MODEL_FOLDER]
-    # behaves as if the following flags were passed:
-    #   --model_type MIL_MultiTask_imedslab
-    #   --lossfcn_type CrossEntropy_MultiTask
-    #   --predict_criteria Max_Multitask
-    #   --classweight_type all_metrics_inv
-    #   --multitask_type all
-    #   --note demo
+
     # ------------------------------------------------------------------
-    cfg.model_type = "MIL_MultiTask_imedslab"
-    cfg.lossfcn_type = "CrossEntropy_MultiTask"
-    cfg.predict_criteria = "Max_Multitask"
-    cfg.classweight_type = "all_metrics_inv"
-    cfg.multitask_type = "all"
+    cfg.model_type = "MIL"
+    cfg.lossfcn_type = "CrossEntropy"
+    cfg.predict_criteria = "Max"
+    cfg.classweight_type = "inv"
+    cfg.multitask_type = "off"
     cfg.note = "demo"
     # build_config only sets the full 7-task dict when multitask_type=="all"
-    # is parsed from argv, so set it explicitly here since we override above.
+    # is parsed from argv, so set it explicitly here since we override above. #"jsnm": 4, "jsnl": 4, "osfm": 4, "ostm": 4, "ostl": 4, "osfl": 4
     cfg.OARSI_TASKS = {
-        "kl": 5, "jsnm": 4, "jsnl": 4, "osfm": 4, "ostm": 4, "ostl": 4, "osfl": 4
+        "kl": 5, 
     }
 
     main(cfg)
